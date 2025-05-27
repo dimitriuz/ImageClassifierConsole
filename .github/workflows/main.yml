@@ -1,0 +1,59 @@
+name: .NET Build and Publish
+
+on:
+  push:
+    branches: [ "main", "master" ] # Adjust if your main branch has a different name
+  pull_request:
+    branches: [ "main", "master" ] # Adjust if your main branch has a different name
+
+jobs:
+  build:
+    name: Build and Publish for ${{ matrix.os }} (${{ matrix.rid }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest] # Operating systems to build on
+        dotnet-version: ['8.0.x'] # Specify your .NET version(s)
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64 # Runtime Identifier for Linux
+            artifact-name: ImageClassifier-linux-x64
+            output-name: ImageClassifier
+          - os: windows-latest
+            rid: win-x64   # Runtime Identifier for Windows
+            artifact-name: ImageClassifier-win-x64
+            output-name: ImageClassifier.exe
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup .NET ${{ matrix.dotnet-version }}
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ matrix.dotnet-version }}
+
+    - name: Restore dependencies
+      run: dotnet restore
+      # Optional: Specify project file if not in root or if multiple projects exist
+      # run: dotnet restore ./YourProjectName.csproj
+
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+      # Optional: Specify project file
+      # run: dotnet build ./YourProjectName.csproj --configuration Release --no-restore
+
+    - name: Publish
+      # Publishes as a self-contained application for the specified runtime
+      # For single-file executable, add: /p:PublishSingleFile=true (increases build time)
+      # For trimmed executable (reduces size but requires more testing): /p:PublishTrimmed=true
+      run: dotnet publish --configuration Release --runtime ${{ matrix.rid }} --self-contained true -o ./publish/${{ matrix.rid }} /p:AssemblyName=${{ matrix.output-name }}
+      # Optional: Specify project file
+      # run: dotnet publish ./YourProjectName.csproj --configuration Release --runtime ${{ matrix.rid }} --self-contained true -o ./publish/${{ matrix.rid }} /p:AssemblyName=${{ matrix.output-name }}
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact-name }}
+        path: ./publish/${{ matrix.rid }}/*
+        if-no-files-found: error # Fails the step if no files are found to upload
